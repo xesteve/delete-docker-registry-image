@@ -142,7 +142,7 @@ layers_for_revision () {
   layers_for_given_revision=()
 
   check_blob_version blobs/sha256/${directory_prefix}/${layers_for_revision_rev}/data
-  for filesystem_layer_sha256 in $(cat blobs/sha256/${directory_prefix}/${layers_for_revision_rev}/data  | jq -r "$LAYERS | map($MAP)[]" | sort | uniq); do
+  for filesystem_layer_sha256 in $(cat blobs/sha256/${directory_prefix}/${layers_for_revision_rev}/data  | jq -r "$LAYERS | map($MAP)[]" | sort -u); do
     digest=$(echo $filesystem_layer_sha256 | sed -e 's/sha256://g')
     layers_for_given_revision+=("$digest")
   done
@@ -154,7 +154,6 @@ layers_for_revision () {
 #check schemaVersion of the blob data file. Depending the version change the strings to search
 check_blob_version(){
  BLOB_VERSION=`grep "schemaVersion" $1 |cut -d ':' -f2`
- echo $1
  case "$BLOB_VERSION" in
    " 1," )
      LAYERS=.fsLayers
@@ -351,7 +350,7 @@ else
     directory_prefix=${manifest_digest:0:2}
 
     check_blob_version blobs/sha256/${directory_prefix}/${manifest_digest}/data
-    for filesystem_layer_sha256 in $(cat blobs/sha256/${directory_prefix}/${manifest_digest}/data  | jq -r "$LAYERS | map($MAP)[]" | sort | uniq); do
+    for filesystem_layer_sha256 in $(cat blobs/sha256/${directory_prefix}/${manifest_digest}/data  | jq -r "$LAYERS | map($MAP)[]" | sort -u); do
       digest=$(echo $filesystem_layer_sha256 | sed -e 's/sha256://g')
       layer_digests_for_tag+=("$digest")
     done
