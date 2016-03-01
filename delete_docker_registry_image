@@ -141,13 +141,30 @@ layers_for_revision () {
 
   layers_for_given_revision=()
 
-  for filesystem_layer_sha256 in $(cat blobs/sha256/${directory_prefix}/${layers_for_revision_rev}/data  | jq -r '.fsLayers | map(.blobSum)[]' | sort | uniq); do
+  check_blob_version blobs/sha256/${directory_prefix}/${layers_for_revision_rev}/data
+  for filesystem_layer_sha256 in $(cat blobs/sha256/${directory_prefix}/${layers_for_revision_rev}/data  | jq -r "$LAYERS | map($MAP)[]" | sort | uniq); do
     digest=$(echo $filesystem_layer_sha256 | sed -e 's/sha256://g')
     layers_for_given_revision+=("$digest")
   done
 
   unique_layers_for_given_revision=$(echo "${layers_for_given_revision[@]}" | tr ' ' '\n' | sort -u | tr '\n' ' ')
   echo "${unique_layers_for_given_revision[@]}"
+}
+
+#check schemaVersion of the blob data file. Depending the version change the strings to search
+check_blob_version(){
+ BLOB_VERSION=`grep "schemaVersion" $1 |cut -d ':' -f2`
+ echo $1
+ case "$BLOB_VERSION" in
+   " 1," )
+     LAYERS=.fsLayers
+     MAP=.blobSum
+     ;;
+  " 2," )
+    LAYERS=.layers
+    MAP=.digest
+    ;;
+  esac
 }
 
 check_for_jq () {
@@ -333,7 +350,8 @@ else
     revisions_to_delete+=("$dir_for_revisions/sha256/$manifest_digest")
     directory_prefix=${manifest_digest:0:2}
 
-    for filesystem_layer_sha256 in $(cat blobs/sha256/${directory_prefix}/${manifest_digest}/data  | jq -r '.fsLayers | map(.blobSum)[]' | sort | uniq); do
+    check_blob_version blobs/sha256/${directory_prefix}/${manifest_digest}/data
+    for filesystem_layer_sha256 in $(cat blobs/sha256/${directory_prefix}/${manifest_digest}/data  | jq -r "$LAYERS | map($MAP)[]" | sort | uniq); do
       digest=$(echo $filesystem_layer_sha256 | sed -e 's/sha256://g')
       layer_digests_for_tag+=("$digest")
     done
@@ -350,7 +368,8 @@ else
       for tag_subdir in $(ls $dir_for_tags | grep -v $TAG_IDENTIFIER); do
         manifest_digest_for_tag=$(cat "${dir_for_tags}/${tag_subdir}/current/link" | sed -e 's/sha256://g')
         directory_prefix_for_tag_digest=${manifest_digest_for_tag:0:2}
-        for filesystem_layer_sha256_for_tag in $(cat blobs/sha256/${directory_prefix_for_tag_digest}/${manifest_digest_for_tag}/data  | jq -r '.fsLayers | map(.blobSum)[]' | sort | uniq); do
+        check_blob_version blobs/sha256/${directory_prefix_for_tag_digest}/${manifest_digest_for_tag}/data
+        for filesystem_layer_sha256_for_tag in $(cat blobs/sha256/${directory_prefix_for_tag_digest}/${manifest_digest_for_tag}/data  | jq -r "$LAYERS | map($MAP)[]" | sort -u); do
           used_digest=$(echo $filesystem_layer_sha256_for_tag | sed -e 's/sha256://g')
           if [ "$used_digest" == "$digest" ]; then
             digest_in_use_in_same_repo=true
